@@ -130,3 +130,31 @@ func createGyroView() *tvxwidgets.BarChart {
 
 	return chart
 }
+
+func createPidFlex() *tview.Flex {
+	p := tview.NewInputField()
+	i := tview.NewInputField()
+	d := tview.NewInputField()
+
+	p.SetLabel("Input P value: ").
+		SetFieldWidth(10).
+		SetAcceptanceFunc(tview.InputFieldFloat)
+
+	i.SetLabel("Input I value: ").
+		SetFieldWidth(10).
+		SetAcceptanceFunc(tview.InputFieldFloat)
+
+	d.SetLabel("Input D value: ").
+		SetFieldWidth(10).
+		SetAcceptanceFunc(tview.InputFieldFloat)
+
+	pidFlex := tview.NewFlex().SetDirection(tview.FlexRow)
+	pidFlex.AddItem(p, 0, 1, true)
+	pidFlex.AddItem(i, 0, 1, true)
+	pidFlex.AddItem(d, 0, 1, true)
+
+	pidFlex.SetTitle("Set PID values")
+	pidFlex.SetBorder(true)
+
+	return pidFlex
+}

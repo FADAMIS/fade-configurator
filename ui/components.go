@@ -6,17 +6,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/FADAMIS/fade-configurator/config"
+	"github.com/FADAMIS/fade-configurator/device"
 	"github.com/gdamore/tcell/v2"
 	"github.com/navidys/tvxwidgets"
 	"github.com/rivo/tview"
 
 	"go.bug.st/serial"
 )
-
-var state = State{
-	ShowHiddenFiles: false,
-	FirmwarePath:    "",
-}
 
 func createFilePicker() *tview.TreeView {
 	homeDir, _ := os.UserHomeDir()
@@ -33,7 +30,7 @@ func createFilePicker() *tview.TreeView {
 		}
 
 		for _, file := range files {
-			if strings.HasPrefix(file.Name(), ".") && !state.ShowHiddenFiles {
+			if strings.HasPrefix(file.Name(), ".") && !config.AppState.ShowHiddenFiles {
 				continue
 			}
 
@@ -43,8 +40,8 @@ func createFilePicker() *tview.TreeView {
 
 			if file.IsDir() {
 				node.SetColor(tcell.ColorGreen)
-			} else {
-				node.SetColor(tcell.ColorWhite)
+			} else if strings.HasSuffix(strings.ToLower(file.Name()), ".bin") {
+				node.SetColor(tcell.ColorViolet)
 			}
 
 			target.AddChild(node)
@@ -69,26 +66,17 @@ func createFilePicker() *tview.TreeView {
 			} else {
 				node.SetExpanded(!node.IsExpanded())
 			}
-		} else if node.GetColor() == tcell.ColorWhite { // files have white color
-			state.FirmwarePath = path
+		} else if node.GetColor() == tcell.ColorViolet { // selectable files have violet color
+			config.AppState.FirmwarePath = path
 		}
 	})
 
 	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Rune() {
 		case rune('h'):
-			state.ShowHiddenFiles = !state.ShowHiddenFiles
+			config.AppState.ShowHiddenFiles = !config.AppState.ShowHiddenFiles
 
 			tree.GetRoot().ClearChildren()
-
-			/*childNodes := tree.GetRoot().GetChildren()
-			if !ShowHidden {
-				for _, node := range childNodes {
-					if strings.HasPrefix(node.GetText(), ".") {
-						tree.GetRoot().ClearChildren()
-					}
-				}
-			}*/
 
 			add(root, homeDir)
 		}
@@ -106,12 +94,17 @@ func createPortSelector() *tview.DropDown {
 	}
 
 	if len(ports) == 0 {
-		ports = []string{"No serial port found"}
+		ports = []string{config.PortNotFound}
 	}
 
 	dropDown := tview.NewDropDown().
 		SetLabel("Select port").
 		SetOptions(ports, nil)
+
+	dropDown.SetSelectedFunc(func(text string, index int) {
+		config.AppState.SelectedPortName = text
+		config.AppState.SelectedPortIndex = index
+	})
 
 	return dropDown
 }
@@ -157,4 +150,85 @@ func createPidFlex() *tview.Flex {
 	pidFlex.SetBorder(true)
 
 	return pidFlex
+}
+
+func createConnectButton() *tview.Button {
+	connectButton := tview.NewButton("Connect to device").
+		SetSelectedFunc(func() {
+			if config.AppState.SelectedPortName == config.PortNotFound {
+				config.AppState.LogView.SetLabel("Error")
+				config.AppState.LogView.SetText("No port selected")
+				return
+			}
+
+			if config.AppState.Port != nil {
+				config.AppState.Port.Close()
+			}
+
+			var err error
+
+			config.AppState.Port, err = serial.Open(config.AppState.SelectedPortName, &serial.Mode{
+				BaudRate: 115200,
+			})
+
+			if err != nil {
+				config.AppState.LogView.SetLabel("Error")
+				config.AppState.LogView.SetText("Could not open port")
+				return
+			}
+		})
+
+	return connectButton
+}
+
+func startFlashing(firmware []byte) {
+	go func() {
+		err := config.AppState.DFU.FlashFirmware(firmware, func(status string) {
+			config.AppState.App.QueueUpdateDraw(func() {
+				config.AppState.LogView.SetLabel("Status")
+				config.AppState.LogView.SetText(status)
+			})
+		})
+
+		config.AppState.App.QueueUpdateDraw(func() {
+			if err == nil {
+				config.AppState.LogView.SetLabel("Status")
+				config.AppState.LogView.SetText("Finished flashing")
+			} else {
+				config.AppState.LogView.SetLabel("Error")
+				config.AppState.LogView.SetText(err.Error())
+			}
+		})
+	}()
+}
+
+func createFlashButton() *tview.Button {
+	flashButton := tview.NewButton("Flash firmware").
+		SetSelectedFunc(func() {
+			dev, err := device.NewDFUDevice()
+			if err != nil {
+				config.AppState.LogView.SetLabel("Error")
+				config.AppState.LogView.SetText("Could not open device")
+				return
+			}
+
+			config.AppState.DFU = dev
+
+			if config.AppState.FirmwarePath == "" {
+				config.AppState.LogView.SetLabel("Error")
+				config.AppState.LogView.SetText("No firmware selected")
+				return
+			}
+
+			fw, err := os.ReadFile(config.AppState.FirmwarePath)
+			if err != nil {
+				config.AppState.LogView.SetLabel("Error")
+				config.AppState.LogView.SetText("Could not open file")
+				return
+			}
+
+			startFlashing(fw)
+		})
+
+	return flashButton
 }

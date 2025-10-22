@@ -6,6 +6,7 @@ require (
 	github.com/creack/goselect v0.1.2 // indirect
 	github.com/gdamore/encoding v1.0.1 // indirect
 	github.com/gdamore/tcell/v2 v2.9.0 // indirect
+	github.com/google/gousb v1.1.3 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/navidys/tvxwidgets v0.12.1 // indirect

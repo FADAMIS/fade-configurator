@@ -1,4 +1,4 @@
-package device
+package dfu
 
 import (
 	"fmt"
@@ -6,6 +6,8 @@ import (
 
 	"github.com/google/gousb"
 )
+
+// Protocol implemented based on AN3156 and USB DFU specification
 
 const (
 	DFU_INTERFACE     = 0
@@ -65,6 +67,9 @@ func NewDFUDevice() (*DFUDevice, error) {
 }
 
 func (d *DFUDevice) Close() {
+	if d == nil {
+		return
+	}
 	if d.Device != nil {
 		d.Device.Close()
 	}

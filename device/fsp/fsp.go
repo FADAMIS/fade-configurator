@@ -1,0 +1,169 @@
+package fsp
+
+import (
+	"encoding/binary"
+	"fmt"
+	"math"
+
+	"go.bug.st/serial"
+)
+
+// Fade Serial Protocol for updating variables inside the device's flash
+// Inspired by the AN3155 protocol
+
+// Each key may have a different datatype as written in the FSP documentation
+
+const (
+	CMD_SET  = 0x67
+	CMD_GET  = 0x69
+	CMD_DFU  = 0xDF
+	CMD_SAVE = 0xFE
+
+	ACK  = 0x0A
+	NACK = 0xC4
+
+	VALUE_DATA_TYPE_FLOAT32 = "float32"
+)
+
+// List of available keys to set
+const (
+	KEY_P_VALUE = uint16(iota)
+	KEY_I_VALUE
+	KEY_D_VALUE
+)
+
+// Specifies which key has which data type
+var keyToValueDataType = map[uint16]string{
+	KEY_P_VALUE: VALUE_DATA_TYPE_FLOAT32,
+	KEY_I_VALUE: VALUE_DATA_TYPE_FLOAT32,
+	KEY_D_VALUE: VALUE_DATA_TYPE_FLOAT32,
+}
+
+type SerialDevice struct {
+	port serial.Port
+}
+
+func (p *SerialDevice) Close() {
+	if p.port != nil {
+		p.port.Close()
+	}
+}
+
+func NewSerialDevice(portName string) (*SerialDevice, error) {
+	port, err := serial.Open(portName, &serial.Mode{
+		BaudRate: 115200,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	serDe := &SerialDevice{port}
+
+	return serDe, nil
+}
+
+func (p *SerialDevice) sendCmd(cmd byte) error {
+	packet := []byte{cmd, cmd ^ 0xFF}
+	_, err := p.port.Write(packet)
+
+	return err
+}
+
+func (p *SerialDevice) waitForAck() error {
+	buffer := make([]byte, 1)
+
+	_, err := p.port.Read(buffer)
+	if err != nil {
+		return fmt.Errorf("Could not read port: %s", err.Error())
+	}
+
+	if buffer[0] != ACK {
+		return fmt.Errorf("Expected ACK, got: 0x%X", buffer[0])
+	}
+
+	return nil
+}
+
+func (p *SerialDevice) setValueFloat32(key uint16, value float32) error {
+	// Check if key exists and if the corresponding value is supposed to be float32
+	val, ok := keyToValueDataType[key]
+	if !ok || val != VALUE_DATA_TYPE_FLOAT32 {
+		return fmt.Errorf("Invalid key")
+	}
+
+	err := p.sendCmd(CMD_SET)
+	if err != nil {
+		return err
+	}
+
+	err = p.waitForAck()
+	if err != nil {
+		return err
+	}
+
+	keyBytes := make([]byte, 2)
+	binary.BigEndian.PutUint16(keyBytes, key)
+	checksum := keyBytes[0] ^ keyBytes[1]
+
+	packet := append(keyBytes, checksum)
+	_, err = p.port.Write(packet)
+	if err != nil {
+		return fmt.Errorf("Could not send key: %s", err.Error())
+	}
+
+	err = p.waitForAck()
+	if err != nil {
+		return err
+	}
+
+	valueBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(valueBytes, math.Float32bits(value))
+	checksum = valueBytes[0] ^ valueBytes[1] ^ valueBytes[2] ^ valueBytes[3]
+
+	packet = append(valueBytes, checksum)
+	_, err = p.port.Write(packet)
+	if err != nil {
+		return fmt.Errorf("Could not send value: %s", err.Error())
+	}
+
+	return p.waitForAck()
+}
+
+func (p *SerialDevice) getValueFloat32(key uint16) (float32, error) {
+	// Check if key exists and if the corresponding value is supposed to be float32
+	val, ok := keyToValueDataType[key]
+	if !ok || val != VALUE_DATA_TYPE_FLOAT32 {
+		return 0.0, fmt.Errorf("Invalid key")
+	}
+
+	err := p.sendCmd(CMD_GET)
+	if err != nil {
+		return 0.0, err
+	}
+
+	err = p.waitForAck()
+	if err != nil {
+		return 0.0, err
+	}
+
+	keyBytes := make([]byte, 2)
+	binary.BigEndian.PutUint16(keyBytes, key)
+	checksum := keyBytes[0] ^ keyBytes[1]
+
+	packet := append(keyBytes, checksum)
+	_, err = p.port.Write(packet)
+	if err != nil {
+		return 0.0, fmt.Errorf("Could not send key: %s", err.Error())
+	}
+
+	buffer := make([]byte, 4)
+	_, err = p.port.Read(buffer)
+	if err != nil {
+		return 0.0, fmt.Errorf("Could not read port: %s", err.Error())
+	}
+
+	valUint32Format := binary.BigEndian.Uint32(buffer)
+
+	return math.Float32frombits(valUint32Format), nil
+}

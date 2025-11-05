@@ -5,9 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/FADAMIS/fade-configurator/config"
-	"github.com/FADAMIS/fade-configurator/device"
+	"github.com/FADAMIS/fade-configurator/device/dfu"
+	"github.com/FADAMIS/fade-configurator/device/fsp"
 	"github.com/gdamore/tcell/v2"
 	"github.com/navidys/tvxwidgets"
 	"github.com/rivo/tview"
@@ -84,6 +86,9 @@ func createFilePicker() *tview.TreeView {
 		return event
 	})
 
+	tree.SetBorder(true)
+	tree.SetTitle("Select firmware")
+
 	return tree
 }
 
@@ -120,6 +125,9 @@ func createGyroView() *tvxwidgets.BarChart {
 
 	chart.SetAxesColor(tcell.ColorAntiqueWhite)
 	chart.SetAxesLabelColor(tcell.ColorAntiqueWhite)
+
+	chart.SetBorder(true)
+	chart.SetTitle("Gyro information")
 
 	return chart
 }
@@ -167,9 +175,7 @@ func createConnectButton() *tview.Button {
 
 			var err error
 
-			config.AppState.Port, err = serial.Open(config.AppState.SelectedPortName, &serial.Mode{
-				BaudRate: 115200,
-			})
+			config.AppState.Port, err = fsp.NewSerialDevice(config.AppState.SelectedPortName)
 
 			if err != nil {
 				config.AppState.LogView.SetLabel("Error")
@@ -181,8 +187,11 @@ func createConnectButton() *tview.Button {
 	return connectButton
 }
 
-func startFlashing(firmware []byte) {
+func startFlashing(firmware []byte, button *tview.Button) {
 	go func() {
+		end := make(chan int)
+		go activityBarUpdate(end)
+
 		err := config.AppState.DFU.FlashFirmware(firmware, func(status string) {
 			config.AppState.App.QueueUpdateDraw(func() {
 				config.AppState.LogView.SetLabel("Status")
@@ -198,37 +207,72 @@ func startFlashing(firmware []byte) {
 				config.AppState.LogView.SetLabel("Error")
 				config.AppState.LogView.SetText(err.Error())
 			}
+
+			button.SetDisabled(false)
 		})
+
+		end <- 0
 	}()
 }
 
 func createFlashButton() *tview.Button {
-	flashButton := tview.NewButton("Flash firmware").
-		SetSelectedFunc(func() {
-			dev, err := device.NewDFUDevice()
-			if err != nil {
-				config.AppState.LogView.SetLabel("Error")
-				config.AppState.LogView.SetText("Could not open device")
-				return
-			}
+	flashButton := tview.NewButton("Flash firmware")
+	flashButton.SetSelectedFunc(func() {
+		dev, err := dfu.NewDFUDevice()
+		if err != nil {
+			config.AppState.LogView.SetLabel("Error")
+			config.AppState.LogView.SetText("Could not open device")
+			return
+		}
 
-			config.AppState.DFU = dev
+		config.AppState.DFU = dev
 
-			if config.AppState.FirmwarePath == "" {
-				config.AppState.LogView.SetLabel("Error")
-				config.AppState.LogView.SetText("No firmware selected")
-				return
-			}
+		if config.AppState.FirmwarePath == "" {
+			config.AppState.LogView.SetLabel("Error")
+			config.AppState.LogView.SetText("No firmware selected")
+			return
+		}
 
-			fw, err := os.ReadFile(config.AppState.FirmwarePath)
-			if err != nil {
-				config.AppState.LogView.SetLabel("Error")
-				config.AppState.LogView.SetText("Could not open file")
-				return
-			}
+		fw, err := os.ReadFile(config.AppState.FirmwarePath)
+		if err != nil {
+			config.AppState.LogView.SetLabel("Error")
+			config.AppState.LogView.SetText("Could not open file")
+			return
+		}
 
-			startFlashing(fw)
-		})
+		flashButton.SetDisabled(true)
+
+		startFlashing(fw, flashButton)
+	})
 
 	return flashButton
+}
+
+func createActivityBar() *tvxwidgets.ActivityModeGauge {
+	bar := tvxwidgets.NewActivityModeGauge()
+	bar.SetPgBgColor(tcell.ColorDarkViolet)
+	bar.SetBorder(true)
+	bar.SetTitle("Status")
+
+	return bar
+}
+
+func activityBarUpdate(end chan int) {
+	tick := time.NewTicker(50 * time.Millisecond)
+
+	for {
+		select {
+		case <-end:
+			tick.Stop()
+			config.AppState.App.QueueUpdateDraw(func() {
+				config.AppState.ActivityBar.Reset()
+			})
+			return
+
+		case <-tick.C:
+			config.AppState.App.QueueUpdateDraw(func() {
+				config.AppState.ActivityBar.Pulse()
+			})
+		}
+	}
 }

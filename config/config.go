@@ -1,9 +1,10 @@
 package config
 
 import (
-	"github.com/FADAMIS/fade-configurator/device"
+	"github.com/FADAMIS/fade-configurator/device/dfu"
+	"github.com/FADAMIS/fade-configurator/device/fsp"
+	"github.com/navidys/tvxwidgets"
 	"github.com/rivo/tview"
-	"go.bug.st/serial"
 )
 
 // Disables double borders on focused windows
@@ -18,6 +19,12 @@ func NormalizeBorders() {
 
 const (
 	PortNotFound = "No serial port found"
+	Logo         = `
+    _________    ____  ______
+   / ____/   |  / __ \/ ____/
+  / /_  / /| | / / / / __/   
+ / __/ / ___ |/ /_/ / /___   
+/_/   /_/  |_/_____/_____/   `
 )
 
 type State struct {
@@ -26,9 +33,10 @@ type State struct {
 	FirmwarePath      string
 	SelectedPortName  string
 	SelectedPortIndex int
-	Port              serial.Port
-	DFU               *device.DFUDevice
+	Port              *fsp.SerialDevice
+	DFU               *dfu.DFUDevice
 	LogView           *tview.TextView
+	ActivityBar       *tvxwidgets.ActivityModeGauge
 }
 
 var AppState = State{
@@ -39,5 +47,6 @@ var AppState = State{
 	SelectedPortIndex: -1,
 	DFU:               nil,
 	Port:              nil,
-	LogView:           tview.NewTextView(),
+	LogView:           nil,
+	ActivityBar:       nil,
 }

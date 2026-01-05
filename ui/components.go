@@ -2,6 +2,7 @@ package ui
 
 import (
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,6 +29,7 @@ func createFilePicker() *tview.TreeView {
 	add := func(target *tview.TreeNode, path string) {
 		files, err := os.ReadDir(path)
 		if err != nil {
+			slog.Error(err.Error())
 			panic(err)
 		}
 
@@ -95,6 +97,7 @@ func createFilePicker() *tview.TreeView {
 func createPortSelector() *tview.DropDown {
 	ports, err := serial.GetPortsList()
 	if err != nil {
+		slog.Error(err.Error())
 		log.Fatal(err)
 	}
 
@@ -110,6 +113,9 @@ func createPortSelector() *tview.DropDown {
 		config.AppState.SelectedPortName = text
 		config.AppState.SelectedPortIndex = index
 	})
+
+	dropDown.SetBorder(true)
+	dropDown.SetTitle("Select device")
 
 	return dropDown
 }
@@ -178,6 +184,7 @@ func createConnectButton() *tview.Button {
 			config.AppState.Port, err = fsp.NewSerialDevice(config.AppState.SelectedPortName)
 
 			if err != nil {
+				slog.Error(err.Error())
 				config.AppState.LogView.SetLabel("Error")
 				config.AppState.LogView.SetText("Could not open port")
 				return
@@ -204,6 +211,7 @@ func startFlashing(firmware []byte, button *tview.Button) {
 				config.AppState.LogView.SetLabel("Status")
 				config.AppState.LogView.SetText("Finished flashing")
 			} else {
+				slog.Error(err.Error())
 				config.AppState.LogView.SetLabel("Error")
 				config.AppState.LogView.SetText(err.Error())
 			}
@@ -220,6 +228,7 @@ func createFlashButton() *tview.Button {
 	flashButton.SetSelectedFunc(func() {
 		dev, err := dfu.NewDFUDevice()
 		if err != nil {
+			slog.Error(err.Error())
 			config.AppState.LogView.SetLabel("Error")
 			config.AppState.LogView.SetText("Could not open device")
 			return
@@ -235,6 +244,7 @@ func createFlashButton() *tview.Button {
 
 		fw, err := os.ReadFile(config.AppState.FirmwarePath)
 		if err != nil {
+			slog.Error(err.Error())
 			config.AppState.LogView.SetLabel("Error")
 			config.AppState.LogView.SetText("Could not open file")
 			return

@@ -3,6 +3,7 @@ package fsp
 import (
 	"encoding/binary"
 	"fmt"
+	"log/slog"
 	"math"
 
 	"go.bug.st/serial"
@@ -44,6 +45,9 @@ type SerialDevice struct {
 }
 
 func (p *SerialDevice) Close() {
+	if p == nil {
+		return
+	}
 	if p.port != nil {
 		p.port.Close()
 	}
@@ -75,10 +79,12 @@ func (p *SerialDevice) waitForAck() error {
 
 	_, err := p.port.Read(buffer)
 	if err != nil {
+		slog.Error("Could not read port: %s", err.Error())
 		return fmt.Errorf("Could not read port: %s", err.Error())
 	}
 
 	if buffer[0] != ACK {
+		slog.Error("Expected ACK, got: 0x%X", buffer[0])
 		return fmt.Errorf("Expected ACK, got: 0x%X", buffer[0])
 	}
 
@@ -94,11 +100,13 @@ func (p *SerialDevice) setValueFloat32(key uint16, value float32) error {
 
 	err := p.sendCmd(CMD_SET)
 	if err != nil {
+		slog.Error(err.Error())
 		return err
 	}
 
 	err = p.waitForAck()
 	if err != nil {
+		slog.Error(err.Error())
 		return err
 	}
 
@@ -109,11 +117,13 @@ func (p *SerialDevice) setValueFloat32(key uint16, value float32) error {
 	packet := append(keyBytes, checksum)
 	_, err = p.port.Write(packet)
 	if err != nil {
+		slog.Error("Could not send key: %s", err.Error())
 		return fmt.Errorf("Could not send key: %s", err.Error())
 	}
 
 	err = p.waitForAck()
 	if err != nil {
+		slog.Error(err.Error())
 		return err
 	}
 
@@ -124,6 +134,7 @@ func (p *SerialDevice) setValueFloat32(key uint16, value float32) error {
 	packet = append(valueBytes, checksum)
 	_, err = p.port.Write(packet)
 	if err != nil {
+		slog.Error(err.Error())
 		return fmt.Errorf("Could not send value: %s", err.Error())
 	}
 
@@ -139,11 +150,13 @@ func (p *SerialDevice) getValueFloat32(key uint16) (float32, error) {
 
 	err := p.sendCmd(CMD_GET)
 	if err != nil {
+		slog.Error(err.Error())
 		return 0.0, err
 	}
 
 	err = p.waitForAck()
 	if err != nil {
+		slog.Error(err.Error())
 		return 0.0, err
 	}
 
@@ -154,12 +167,14 @@ func (p *SerialDevice) getValueFloat32(key uint16) (float32, error) {
 	packet := append(keyBytes, checksum)
 	_, err = p.port.Write(packet)
 	if err != nil {
+		slog.Error("Could not send key: %s", err.Error())
 		return 0.0, fmt.Errorf("Could not send key: %s", err.Error())
 	}
 
 	buffer := make([]byte, 4)
 	_, err = p.port.Read(buffer)
 	if err != nil {
+		slog.Error("Could not read port: %s", err.Error())
 		return 0.0, fmt.Errorf("Could not read port: %s", err.Error())
 	}
 

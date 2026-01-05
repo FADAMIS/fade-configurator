@@ -2,6 +2,7 @@ package dfu
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/gousb"
@@ -49,9 +50,11 @@ func NewDFUDevice() (*DFUDevice, error) {
 
 	dev, err := ctx.OpenDeviceWithVIDPID(STM32_VID, STM32_PID)
 	if err != nil {
+		slog.Error("Failed to open device: " + err.Error())
 		return nil, fmt.Errorf("Failed to open device: %w", err)
 	}
 	if dev == nil {
+		slog.Error("Device not found")
 		return nil, fmt.Errorf("Device not found")
 	}
 
@@ -141,6 +144,7 @@ func (d *DFUDevice) WaitForIdle() error {
 func (d *DFUDevice) GetState() (byte, error) {
 	data, err := d.controlIn(DFU_GETSTATE, 0, 1)
 	if err != nil {
+		slog.Error(err.Error())
 		return 0, err
 	}
 
@@ -155,6 +159,7 @@ func (d *DFUDevice) EnsureReady() error {
 	for {
 		state, err := d.GetState()
 		if err != nil {
+			slog.Error(err.Error())
 			return err
 		}
 
@@ -163,6 +168,7 @@ func (d *DFUDevice) EnsureReady() error {
 			return nil
 		case dfuERROR:
 			if err := d.ClearStatus(); err != nil {
+				slog.Error(err.Error())
 				return err
 			}
 		default:

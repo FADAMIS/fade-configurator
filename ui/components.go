@@ -170,6 +170,7 @@ func createConnectButton() *tview.Button {
 	connectButton := tview.NewButton("Connect to device").
 		SetSelectedFunc(func() {
 			if config.AppState.SelectedPortName == config.PortNotFound {
+				slog.Error("No port selected")
 				config.AppState.LogView.SetLabel("Error")
 				config.AppState.LogView.SetText("No port selected")
 				return
@@ -185,6 +186,7 @@ func createConnectButton() *tview.Button {
 
 			if err != nil {
 				slog.Error(err.Error())
+				slog.Error("Could not open port")
 				config.AppState.LogView.SetLabel("Error")
 				config.AppState.LogView.SetText("Could not open port")
 				return
@@ -201,6 +203,7 @@ func startFlashing(firmware []byte, button *tview.Button) {
 
 		err := config.AppState.DFU.FlashFirmware(firmware, func(status string) {
 			config.AppState.App.QueueUpdateDraw(func() {
+				slog.Info(status)
 				config.AppState.LogView.SetLabel("Status")
 				config.AppState.LogView.SetText(status)
 			})
@@ -208,6 +211,7 @@ func startFlashing(firmware []byte, button *tview.Button) {
 
 		config.AppState.App.QueueUpdateDraw(func() {
 			if err == nil {
+				slog.Info("Finished flashing")
 				config.AppState.LogView.SetLabel("Status")
 				config.AppState.LogView.SetText("Finished flashing")
 			} else {

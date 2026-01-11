@@ -286,3 +286,16 @@ func activityBarUpdate(end chan int) {
 		}
 	}
 }
+
+func createLogoFlex() *tview.Flex {
+	logoView := tview.NewTextView().SetText(config.Logo).SetTextAlign(tview.AlignCenter)
+	description := tview.NewTextView().SetText(config.Description).SetTextAlign(tview.AlignCenter)
+
+	flex := tview.NewFlex().SetDirection(tview.FlexRow)
+
+	flex.AddItem(nil, 0, 1, false)
+	flex.AddItem(logoView, 0, 1, false)
+	flex.AddItem(description, 0, 1, false)
+
+	return flex
+}

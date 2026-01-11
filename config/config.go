@@ -25,6 +25,7 @@ const (
   / /_  / /| | / / / / __/   
  / __/ / ___ |/ /_/ / /___   
 /_/   /_/  |_/_____/_____/   `
+	Description = "This is a configurator for FPV firmware FADE"
 )
 
 type State struct {

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -166,7 +167,7 @@ func createPidFlex() *tview.Flex {
 	return pidFlex
 }
 
-func createConnectButton() *tview.Button {
+func createConnectButton(pidFlex *tview.Flex) *tview.Button {
 	connectButton := tview.NewButton("Connect to device").
 		SetSelectedFunc(func() {
 			if config.AppState.SelectedPortName == config.PortNotFound {
@@ -183,6 +184,7 @@ func createConnectButton() *tview.Button {
 			var err error
 
 			config.AppState.Port, err = fsp.NewSerialDevice(config.AppState.SelectedPortName)
+			getPidValues(pidFlex)
 
 			if err != nil {
 				slog.Error(err.Error())
@@ -194,6 +196,36 @@ func createConnectButton() *tview.Button {
 		})
 
 	return connectButton
+}
+
+func getPidValues(pidFlex *tview.Flex) {
+	p, _ := config.AppState.Port.GetValue(fsp.KEY_P_VALUE)
+	i, _ := config.AppState.Port.GetValue(fsp.KEY_I_VALUE)
+	d, _ := config.AppState.Port.GetValue(fsp.KEY_D_VALUE)
+
+	pidFlex.GetItem(0).(*tview.InputField).SetText(strconv.FormatFloat(float64(p), 'f', -1, 32))
+	pidFlex.GetItem(1).(*tview.InputField).SetText(strconv.FormatFloat(float64(i), 'f', -1, 32))
+	pidFlex.GetItem(2).(*tview.InputField).SetText(strconv.FormatFloat(float64(d), 'f', -1, 32))
+}
+
+func createSaveButton(pidFlex *tview.Flex) *tview.Button {
+	saveButton := tview.NewButton("Save values")
+	saveButton.
+		SetSelectedFunc(func() {
+			if config.AppState.Port == nil {
+				return
+			}
+
+			p, _ := strconv.ParseFloat(pidFlex.GetItem(0).(*tview.InputField).GetText(), 32)
+			i, _ := strconv.ParseFloat(pidFlex.GetItem(0).(*tview.InputField).GetText(), 32)
+			d, _ := strconv.ParseFloat(pidFlex.GetItem(0).(*tview.InputField).GetText(), 32)
+
+			config.AppState.Port.SetValue(fsp.KEY_P_VALUE, float32(p))
+			config.AppState.Port.SetValue(fsp.KEY_I_VALUE, float32(i))
+			config.AppState.Port.SetValue(fsp.KEY_D_VALUE, float32(d))
+		})
+
+	return saveButton
 }
 
 func startFlashing(firmware []byte, button *tview.Button) {
@@ -267,6 +299,7 @@ func createActivityBar() *tvxwidgets.ActivityModeGauge {
 	bar.SetPgBgColor(tcell.ColorDarkViolet)
 	bar.SetBorder(true)
 	bar.SetTitle("Status")
+	bar.SetPgBgColor(tview.Styles.ContrastSecondaryTextColor)
 
 	return bar
 }

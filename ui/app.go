@@ -22,7 +22,8 @@ func CreateApp() {
 	gyroView := createGyroView()
 	pidFlex := createPidFlex()
 	logView := tview.NewTextView()
-	connectButton := createConnectButton()
+	connectButton := createConnectButton(pidFlex)
+	saveButton := createSaveButton(pidFlex)
 	flashButton := createFlashButton()
 	activityBar := createActivityBar()
 	logo := createLogoFlex()
@@ -44,7 +45,7 @@ func CreateApp() {
 	serialFlex.AddItem(
 		tview.NewFlex().SetDirection(tview.FlexRow).
 			AddItem(pidFlex, 0, 9, true).
-			AddItem(tview.NewButton("Save values"), 0, 1, true), 0, 1, true)
+			AddItem(saveButton, 0, 1, true), 0, 1, true)
 
 	serialFlex.AddItem(
 		tview.NewFlex().SetDirection(tview.FlexRow).

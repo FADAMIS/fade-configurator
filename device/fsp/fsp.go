@@ -22,8 +22,6 @@ const (
 
 	ACK  = 0x0A
 	NACK = 0xC4
-
-	VALUE_DATA_TYPE_FLOAT32 = "float32"
 )
 
 // List of available keys to set
@@ -31,14 +29,8 @@ const (
 	KEY_P_VALUE = uint16(iota)
 	KEY_I_VALUE
 	KEY_D_VALUE
+	KEY_LEN
 )
-
-// Specifies which key has which data type
-var keyToValueDataType = map[uint16]string{
-	KEY_P_VALUE: VALUE_DATA_TYPE_FLOAT32,
-	KEY_I_VALUE: VALUE_DATA_TYPE_FLOAT32,
-	KEY_D_VALUE: VALUE_DATA_TYPE_FLOAT32,
-}
 
 type SerialDevice struct {
 	port serial.Port
@@ -91,10 +83,8 @@ func (p *SerialDevice) waitForAck() error {
 	return nil
 }
 
-func (p *SerialDevice) setValueFloat32(key uint16, value float32) error {
-	// Check if key exists and if the corresponding value is supposed to be float32
-	val, ok := keyToValueDataType[key]
-	if !ok || val != VALUE_DATA_TYPE_FLOAT32 {
+func (p *SerialDevice) SetValue(key uint16, value float32) error {
+	if key >= KEY_LEN {
 		return fmt.Errorf("Invalid key")
 	}
 
@@ -141,10 +131,8 @@ func (p *SerialDevice) setValueFloat32(key uint16, value float32) error {
 	return p.waitForAck()
 }
 
-func (p *SerialDevice) getValueFloat32(key uint16) (float32, error) {
-	// Check if key exists and if the corresponding value is supposed to be float32
-	val, ok := keyToValueDataType[key]
-	if !ok || val != VALUE_DATA_TYPE_FLOAT32 {
+func (p *SerialDevice) GetValue(key uint16) (float32, error) {
+	if key >= KEY_LEN {
 		return 0.0, fmt.Errorf("Invalid key")
 	}
 

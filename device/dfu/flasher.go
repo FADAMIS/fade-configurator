@@ -40,7 +40,7 @@ const (
 type DFUDevice struct {
 	Context      *gousb.Context
 	Device       *gousb.Device
-	Interface    uint16
+	Interface    *gousb.Interface
 	TransferSize int
 	Address      uint32
 }
@@ -58,10 +58,13 @@ func NewDFUDevice() (*DFUDevice, error) {
 		return nil, fmt.Errorf("Device not found")
 	}
 
+	cfg, _ := dev.Config(1)
+	intf, _ := cfg.Interface(DFU_INTERFACE, 0)
+
 	device := &DFUDevice{
 		Context:      ctx,
 		Device:       dev,
-		Interface:    DFU_INTERFACE,
+		Interface:    intf,
 		TransferSize: DFU_TRANSFER_SIZE,
 		Address:      DFU_FLASH_START_ADDRESS,
 	}
@@ -87,7 +90,7 @@ func (d *DFUDevice) controlIn(bRequest uint8, wValue uint16, wLength int) ([]byt
 		DFU_REQ_TYPE_DEVICE_TO_HOST,
 		bRequest,
 		wValue,
-		d.Interface,
+		uint16(d.Interface.Setting.Number),
 		buf,
 	)
 	if err != nil {
@@ -102,7 +105,7 @@ func (d *DFUDevice) controlOut(bRequest uint8, wValue uint16, data []byte) error
 		DFU_REQ_TYPE_HOST_TO_DEVICE,
 		bRequest,
 		wValue,
-		d.Interface,
+		uint16(d.Interface.Setting.Number),
 		data,
 	)
 

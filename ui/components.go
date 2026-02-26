@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -15,7 +14,6 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/navidys/tvxwidgets"
 	"github.com/rivo/tview"
-
 	"go.bug.st/serial"
 )
 
@@ -96,29 +94,45 @@ func createFilePicker() *tview.TreeView {
 }
 
 func createPortSelector() *tview.DropDown {
+	dropDown := tview.NewDropDown().SetLabel("Select port")
+
+	refreshDropDown(dropDown)
+
+	dropDown.SetSelectedFunc(func(text string, index int) {
+		slog.Info("selected text: " + text)
+		config.AppState.SelectedPortName = text
+		config.AppState.SelectedPortIndex = index
+	})
+
+	return dropDown
+}
+
+func portCallback(text string, index int) {
+	slog.Info("selected text: " + text)
+	config.AppState.SelectedPortName = text
+	config.AppState.SelectedPortIndex = index
+}
+
+func refreshDropDown(dropdown *tview.DropDown) {
 	ports, err := serial.GetPortsList()
 	if err != nil {
 		slog.Error(err.Error())
-		log.Fatal(err)
 	}
 
 	if len(ports) == 0 {
 		ports = []string{config.PortNotFound}
 	}
 
-	dropDown := tview.NewDropDown().
-		SetLabel("Select port").
-		SetOptions(ports, nil)
+	dropdown.SetOptions(ports, portCallback)
+}
 
-	dropDown.SetSelectedFunc(func(text string, index int) {
-		config.AppState.SelectedPortName = text
-		config.AppState.SelectedPortIndex = index
+func createRefreshButton(dropdown *tview.DropDown) *tview.Button {
+	refresh := tview.NewButton("Refresh ports")
+	refresh.SetSelectedFunc(func() {
+		refreshDropDown(dropdown)
 	})
 
-	dropDown.SetBorder(true)
-	dropDown.SetTitle("Select device")
-
-	return dropDown
+	return refresh
 }
 
 func createGyroView() *tvxwidgets.BarChart {
@@ -170,29 +184,42 @@ func createPidFlex() *tview.Flex {
 func createConnectButton(pidFlex *tview.Flex) *tview.Button {
 	connectButton := tview.NewButton("Connect to device").
 		SetSelectedFunc(func() {
-			if config.AppState.SelectedPortName == config.PortNotFound {
-				slog.Error("No port selected")
-				config.AppState.LogView.SetLabel("Error")
-				config.AppState.LogView.SetText("No port selected")
-				return
-			}
+			go func() {
+				if config.AppState.SelectedPortName == config.PortNotFound {
+					slog.Error("No port selected")
 
-			if config.AppState.Port != nil {
-				config.AppState.Port.Close()
-			}
+					config.AppState.App.QueueUpdateDraw(func() {
+						config.AppState.LogView.SetLabel("Error")
+						config.AppState.LogView.SetText("No port selected")
+					})
+					return
+				}
 
-			var err error
+				if config.AppState.Port != nil {
+					config.AppState.Port.Close()
+				}
 
-			config.AppState.Port, err = fsp.NewSerialDevice(config.AppState.SelectedPortName)
-			getPidValues(pidFlex)
+				var err error
 
-			if err != nil {
-				slog.Error(err.Error())
-				slog.Error("Could not open port")
-				config.AppState.LogView.SetLabel("Error")
-				config.AppState.LogView.SetText("Could not open port")
-				return
-			}
+				config.AppState.Port, err = fsp.NewSerialDevice(config.AppState.SelectedPortName)
+				config.AppState.App.QueueUpdateDraw(func() { getPidValues(pidFlex) })
+
+				if err != nil {
+					slog.Error(err.Error())
+					slog.Error("Could not open port")
+
+					config.AppState.App.QueueUpdateDraw(func() {
+						config.AppState.LogView.SetLabel("Error")
+						config.AppState.LogView.SetText("Could not open port")
+					})
+					return
+				}
+
+				config.AppState.App.QueueUpdateDraw(func() {
+					config.AppState.LogView.SetLabel("Info")
+					config.AppState.LogView.SetText("Successfully connected")
+				})
+			}()
 		})
 
 	return connectButton
@@ -212,17 +239,25 @@ func createSaveButton(pidFlex *tview.Flex) *tview.Button {
 	saveButton := tview.NewButton("Save values")
 	saveButton.
 		SetSelectedFunc(func() {
-			if config.AppState.Port == nil {
-				return
-			}
+			go func() {
+				if config.AppState.Port == nil {
+					return
+				}
 
-			p, _ := strconv.ParseFloat(pidFlex.GetItem(0).(*tview.InputField).GetText(), 32)
-			i, _ := strconv.ParseFloat(pidFlex.GetItem(0).(*tview.InputField).GetText(), 32)
-			d, _ := strconv.ParseFloat(pidFlex.GetItem(0).(*tview.InputField).GetText(), 32)
+				end := make(chan int)
+				go activityBarUpdate(end)
 
-			config.AppState.Port.SetValue(fsp.KEY_P_VALUE, float32(p))
-			config.AppState.Port.SetValue(fsp.KEY_I_VALUE, float32(i))
-			config.AppState.Port.SetValue(fsp.KEY_D_VALUE, float32(d))
+				p, _ := strconv.ParseFloat(pidFlex.GetItem(0).(*tview.InputField).GetText(), 32)
+				i, _ := strconv.ParseFloat(pidFlex.GetItem(1).(*tview.InputField).GetText(), 32)
+				d, _ := strconv.ParseFloat(pidFlex.GetItem(2).(*tview.InputField).GetText(), 32)
+
+				config.AppState.Port.SetValue(fsp.KEY_P_VALUE, float32(p))
+				config.AppState.Port.SetValue(fsp.KEY_I_VALUE, float32(i))
+				config.AppState.Port.SetValue(fsp.KEY_D_VALUE, float32(d))
+
+				end <- 0
+			}()
+
 		})
 
 	return saveButton

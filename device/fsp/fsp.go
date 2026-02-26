@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"time"
 
 	"go.bug.st/serial"
 )
@@ -54,12 +55,19 @@ func NewSerialDevice(portName string) (*SerialDevice, error) {
 		return nil, err
 	}
 
+	port.SetReadTimeout(time.Second * 10)
+
 	serDe := &SerialDevice{port}
 
 	return serDe, nil
 }
 
 func (p *SerialDevice) sendCmd(cmd byte) error {
+	if p == nil {
+		slog.Error("Device not found")
+		return fmt.Errorf("Device not found")
+	}
+
 	packet := []byte{cmd, cmd ^ 0xFF}
 	_, err := p.port.Write(packet)
 
@@ -67,9 +75,14 @@ func (p *SerialDevice) sendCmd(cmd byte) error {
 }
 
 func (p *SerialDevice) waitForAck() error {
+	if p == nil {
+		slog.Error("Device not found")
+		return fmt.Errorf("Device not found")
+	}
+
 	buffer := make([]byte, 1)
 
-	_, err := p.port.Read(buffer)
+	err := p.readFull(buffer)
 	if err != nil {
 		slog.Error("Could not read port: %s", err.Error())
 		return fmt.Errorf("Could not read port: %s", err.Error())
@@ -83,7 +96,24 @@ func (p *SerialDevice) waitForAck() error {
 	return nil
 }
 
+func (p *SerialDevice) readFull(buf []byte) error {
+	total := 0
+	for total < len(buf) {
+		n, err := p.port.Read(buf[total:])
+		if err != nil {
+			return err
+		}
+		total += n
+	}
+	return nil
+}
+
 func (p *SerialDevice) SetValue(key uint16, value float32) error {
+	if p == nil {
+		slog.Error("Device not found")
+		return fmt.Errorf("Device not found")
+	}
+
 	if key >= KEY_LEN {
 		return fmt.Errorf("Invalid key")
 	}
@@ -132,6 +162,11 @@ func (p *SerialDevice) SetValue(key uint16, value float32) error {
 }
 
 func (p *SerialDevice) GetValue(key uint16) (float32, error) {
+	if p == nil {
+		slog.Error("Device not found")
+		return 0.0, fmt.Errorf("Device not found")
+	}
+
 	if key >= KEY_LEN {
 		return 0.0, fmt.Errorf("Invalid key")
 	}
@@ -159,14 +194,36 @@ func (p *SerialDevice) GetValue(key uint16) (float32, error) {
 		return 0.0, fmt.Errorf("Could not send key: %s", err.Error())
 	}
 
-	buffer := make([]byte, 4)
-	_, err = p.port.Read(buffer)
+	err = p.waitForAck()
+	if err != nil {
+		slog.Error(err.Error())
+		return 0.0, err
+	}
+
+	buffer := make([]byte, 5)
+	err = p.readFull(buffer)
 	if err != nil {
 		slog.Error("Could not read port: %s", err.Error())
 		return 0.0, fmt.Errorf("Could not read port: %s", err.Error())
 	}
 
+	if !checksumValid(buffer) {
+		slog.Error("Invalid checksum")
+		return 0.0, fmt.Errorf("Invalid checksum")
+	}
+
 	valUint32Format := binary.BigEndian.Uint32(buffer)
 
 	return math.Float32frombits(valUint32Format), nil
+}
+
+func checksumValid(data []byte) bool {
+	checksum := data[len(data)-1]
+
+	var verify uint8 = 0x00
+	for b := 0; b < len(data); b++ {
+		verify = verify ^ data[b]
+	}
+
+	return verify == checksum
 }

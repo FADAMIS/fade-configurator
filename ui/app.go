@@ -19,6 +19,7 @@ func CreateApp() {
 
 	filePicker := createFilePicker()
 	portSelector := createPortSelector()
+	refreshButton := createRefreshButton(portSelector)
 	gyroView := createGyroView()
 	pidFlex := createPidFlex()
 	logView := tview.NewTextView()
@@ -47,9 +48,14 @@ func CreateApp() {
 			AddItem(pidFlex, 0, 9, true).
 			AddItem(saveButton, 0, 1, true), 0, 1, true)
 
+	portFlex := tview.NewFlex().SetDirection(tview.FlexColumn)
+	portFlex.SetBorder(true).SetTitle("Port selection")
+	portFlex.AddItem(portSelector, 0, 1, true)
+	portFlex.AddItem(refreshButton, 0, 1, true)
+
 	serialFlex.AddItem(
 		tview.NewFlex().SetDirection(tview.FlexRow).
-			AddItem(portSelector, 0, 1, true).
+			AddItem(portFlex, 0, 1, true).
 			AddItem(gyroView, 0, 8, false).
 			AddItem(connectButton, 0, 1, true), 0, 1, true)
 

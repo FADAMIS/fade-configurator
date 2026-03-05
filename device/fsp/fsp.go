@@ -158,6 +158,18 @@ func (p *SerialDevice) SetValue(key uint16, value float32) error {
 		return fmt.Errorf("Could not send value: %s", err.Error())
 	}
 
+	err = p.sendCmd(CMD_SAVE)
+	if err != nil {
+		slog.Error(err.Error())
+		return err
+	}
+
+	err = p.waitForAck()
+	if err != nil {
+		slog.Error(err.Error())
+		return err
+	}
+
 	return p.waitForAck()
 }
 

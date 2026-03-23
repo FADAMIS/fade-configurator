@@ -233,7 +233,7 @@ func checksumValid(data []byte) bool {
 	checksum := data[len(data)-1]
 
 	var verify uint8 = 0x00
-	for b := 0; b < len(data); b++ {
+	for b := 0; b < len(data)-1; b++ {
 		verify = verify ^ data[b]
 	}
 
